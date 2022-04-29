@@ -15,10 +15,19 @@ class Result:
 
 def combo(attempts: int, hp: int) -> Result:
     """
+    Simulates a single attempt the Wirefly Hive combo.
+    See https://www.youtube.com/watch?v=mKZ-ibOkRzs for details.
 
     :param attempts:
+        Maximum number of flips before the simulation gives up
     :param hp:
+        Amount of enemy HP at the start of the combo
+
     :return:
+        Result object containing the outcome (True on success, False otherwise),
+        the amount of wireflies used to attack (-1 if the combo failed),
+        the amount of coin flips preceding the attack (-1 if the combo failed),
+        sequence of coin flips, coded as H for heads and T for tails (empty if the combo failed)
     """
     wireflies = 0
     seq = ""
@@ -86,7 +95,7 @@ def plot_data(
     """
 
     dpi = plt.rcParams["figure.dpi"]
-    fig = plt.figure(figsize=(1280 / dpi, 960 / dpi))
+    fig = plt.figure(figsize=(1280/dpi, 960/dpi))
     ax = fig.add_axes([0, 0, 1, 1])
     rects = ax.bar(sim_data.keys(), sim_data.values())
     ax.set_xlabel(xlabel)
@@ -108,7 +117,7 @@ def plot_data(
 
 
 def sim():
-    n = 10000000  # number of simulations
+    n = 1000000  # number of simulations
     flips = 1000  # number of coin flips per simulation
     opp_hp = 4  # opponent's starting HP
     success = 0  # successful combo counter
