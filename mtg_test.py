@@ -1,5 +1,6 @@
 import random
 import matplotlib.pyplot as plt
+import numpy as np
 from dataclasses import dataclass
 from typing import Dict
 
@@ -31,32 +32,41 @@ def combo(attempts: int, hp: int) -> Result:
     return Result(False, -1, -1, "")
 
 
-def plot_data(sim_data: Dict) -> None:
+def plot_data(sim_data: Dict, xlabel: str, filename: str) -> None:
     fig = plt.figure()
     ax = fig.add_axes([0, 0, 1, 1])
-    ax.bar(sim_data.keys, sim_data.values())
-    plt.show()
+    rects = ax.bar(sim_data.keys(), sim_data.values())
+    ax.set_xlabel(xlabel)
+    ax.set_xticks(list(sim_data.keys()))
+    ax.bar_label(rects, padding=3)
+
+    plt.savefig(filename, bbox_inches='tight')
 
 
 if __name__ == "__main__":
 
-    n = 100000000  # number of simulations
-    flips = 1000000  # number of coin flips per simulation
+    n = 10000  # number of simulations
+    flips = 100  # number of coin flips per simulation
     opp_hp = 4  # opponent's starting HP
     success = 0  # successful combo counter
     max_wf = 0  # maximum amount of wireflies in a successful combo
     max_flips = 0  # maximum amount of flips in a successful combo
     max_sequence = ""  # sequence of flips corresponding to the maximum amount
-    data = {}  # data for a histogram
+    wf_data = {}  # wirefly data for a bar graph
+    flip_data = {}  # flip data for a bar graph
 
     for i in range(n):
         attempt = combo(flips, opp_hp)
         if attempt.outcome:
             success += 1
             try:
-                data[attempt.wireflies] += 1
+                wf_data[attempt.wireflies] += 1
             except KeyError:
-                data.update({attempt.wireflies: 1})
+                wf_data.update({attempt.wireflies: 1})
+            try:
+                flip_data[attempt.flips] += 1
+            except KeyError:
+                flip_data.update({attempt.flips: 1})
             if max_wf < attempt.wireflies:
                 print(f"New wirefly max: {attempt.wireflies} wireflies")
                 max_wf = attempt.wireflies
@@ -71,4 +81,5 @@ if __name__ == "__main__":
         f"Max flips: {max_flips}, with sequence\n{max_sequence}"
     )
 
-    plot_data(data)
+    plot_data(wf_data, "Wireflies used", "wf_graph.png")
+    plot_data(flip_data, "Flips used", "flip_graph.png")
