@@ -216,7 +216,7 @@ def sim(stdscr, n: int, flips: int, opp_hp: int):
 
 
 def sim_setup(show_progress: bool, log_name="log.txt"):
-    n = 2000  # number of simulations
+    n = 20000000  # number of simulations
     flips = 350  # number of coin flips per simulation, 2e8 sims peaked at 84 flips (5e-9 probability)
     opp_hp = 4  # opponent's starting HP
     success, max_wf, max_flips, max_sequence = \
@@ -235,14 +235,14 @@ def sim_setup(show_progress: bool, log_name="log.txt"):
             modified.write(datetime.datetime.now().strftime("%X %x") + "\n" + result + "\n\n" + contents)
     else:
         with open(log_name, 'w+') as file:
-            file.write(datetime.datetime.now().strftime("%X %x") + result)
+            file.write(datetime.datetime.now().strftime("%X %x") + "\n" + result)
 
     print(result)
 
 
 def main():
     # If True, a nice progress window is showed, which also quadruples runtime
-    sim_setup(show_progress=True, log_name="result_log.txt")
+    sim_setup(show_progress=False, log_name="result_log.txt")
 
 
 if __name__ == "__main__":
