@@ -1,6 +1,7 @@
 import random
 import matplotlib.pyplot as plt
 import os.path
+import datetime
 import curses
 from dataclasses import dataclass, field
 from typing import Dict
@@ -66,7 +67,7 @@ def combo(attempts: int, hp: int) -> Result:
     seq = ""
 
     for j in range(attempts):
-        coin = random.choice([True, False])
+        coin = True if random.random() <= 0.5 else False
         if coin:
             seq += "H"
             hp += 1
@@ -95,6 +96,7 @@ def next_name(filename: str) -> str:
 def plot_data(
         sim_data: Dict,
         xlabel: str,
+        title='',
         fig_width=1650,
         fig_height=900,
         display_mode='save',
@@ -105,6 +107,8 @@ def plot_data(
 
     Plots provided data, either saving it to a file or showing in a new window
 
+    :param title:
+        Title of the plot
     :param sim_data:
         Data, formatted as {x_1: y_1, x_2: y_2, ...}
     :param xlabel:
@@ -138,15 +142,13 @@ def plot_data(
     """
 
     dpi = plt.rcParams["figure.dpi"]
-    fig = plt.figure(figsize=(fig_width / dpi, fig_height / dpi))
-    ax = fig.add_axes([0, 0, 1, 1])
+    fig, ax = plt.subplots(figsize=(fig_width / dpi, fig_height / dpi), constrained_layout=True)
     rects = ax.bar(sim_data.keys(), sim_data.values())
+    ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel("Number of occurrences")
     ax.set_xticks(list(sim_data.keys()))
-    ax.bar_label(rects, padding=3)
-
-    fig.tight_layout()
+    ax.bar_label(rects, padding=3, rotation=30)
 
     if display_mode == "save":
         if os.path.exists(filename) & (not overwrite):
@@ -165,55 +167,82 @@ def progress_bar(current, total, bar_length=75):
     arrow = int(fraction * bar_length - 1) * '-' + '>'
     padding = int(bar_length - len(arrow)) * ' '
 
-    return f'Progress: [{arrow}{padding}] {fraction*100:.2f}% ({current}/{total})'
+    return f'Progress: [{arrow}{padding}] {fraction * 100:.2f}% ({current}/{total})'
 
 
-def sim(stdscr, n, flips, opp_hp):
+def sim(stdscr, n: int, flips: int, opp_hp: int):
     data = Data()
-
-    stdscr.nodelay(True)
 
     for i in range(n):
         attempt = combo(flips, opp_hp)
         if attempt.outcome:
             data.parse(attempt)
-        stdscr.clear()
-        stdscr.addstr(0, 0, f"Last success wireflies: {data.last_wf}")
-        stdscr.addstr(1, 0, f"Last success flips: {data.last_flips}")
-        stdscr.addstr(2, 0, f"Last successful sequence: {data.last_sequence}")
-        stdscr.addstr(3, 0, f"Max wireflies: {data.max_wf}")
-        stdscr.addstr(4, 0, f"Max flips: {data.max_flips}")
-        stdscr.addstr(5, 0, f"Max successful sequence: {data.max_sequence}")
-        bar = progress_bar(i, n)
-        stdscr.addstr(6, 0, bar)
-        stdscr.refresh()
-        c = stdscr.getch()
-        if c == 3:
-            stdscr.addstr(0, 0, "getch() got Ctrl+C")
+        if stdscr is not None:
+            stdscr.nodelay(True)
+            stdscr.clear()
+            stdscr.addstr(0, 0, f"Last success wireflies: {data.last_wf}")
+            stdscr.addstr(1, 0, f"Last success flips: {data.last_flips}")
+            stdscr.addstr(2, 0, f"Last successful sequence: {data.last_sequence}")
+            stdscr.addstr(3, 0, f"Max wireflies: {data.max_wf}")
+            stdscr.addstr(4, 0, f"Max flips: {data.max_flips}")
+            stdscr.addstr(5, 0, f"Max successful sequence: {data.max_sequence}")
+            bar = progress_bar(i, n)
+            stdscr.addstr(6, 0, bar)
             stdscr.refresh()
-            raise KeyboardInterrupt
-        else:
-            curses.flushinp()
+            c = stdscr.getch()
+            if c == 3:
+                stdscr.addstr(0, 0, "getch() got Ctrl+C")
+                stdscr.refresh()
+                raise KeyboardInterrupt
+            else:
+                curses.flushinp()
 
-    plot_data(sim_data=data.wf_data, xlabel="Wireflies used", display_mode="save", filename="wf_graph.png")
+    plot_data(sim_data=data.wf_data,
+              title=f"n = {n} with {flips} flips per attempt,\nsuccessful = {data.success}",
+              xlabel="Wireflies used",
+              display_mode="save",
+              filename="wf_graph.png"
+              )
     # plot_data(sim_data=wf_data, xlabel="Wireflies used", display_mode="show")
-    plot_data(sim_data=data.flip_data, xlabel="Flips used", display_mode="save", filename="flip_graph.png")
+    plot_data(sim_data=data.flip_data,
+              title=f"n = {n} with {flips} flips per attempt,\nsuccessful = {data.success}",
+              xlabel="Flips used",
+              display_mode="save",
+              filename="flip_graph.png"
+              )
     # plot_data(sim_data=flip_data, xlabel="Flips used", display_mode="show")
 
     return data.success, data.max_wf, data.max_flips, data.max_sequence
 
 
-def main():
-    n = 20000000  # number of simulations
-    flips = 400  # number of coin flips per simulation, 1e8 sims haven't showed more than 72 flips, but who knows
+def sim_setup(show_progress: bool, log_name="log.txt"):
+    n = 2000  # number of simulations
+    flips = 350  # number of coin flips per simulation, 2e8 sims peaked at 84 flips (5e-9 probability)
     opp_hp = 4  # opponent's starting HP
-    success, max_wf, max_flips, max_sequence = curses.wrapper(sim, n, flips, opp_hp)
+    success, max_wf, max_flips, max_sequence = \
+        curses.wrapper(sim, n, flips, opp_hp) if show_progress \
+        else sim(stdscr=None, n=n, flips=flips, opp_hp=opp_hp)
 
-    print(
-        f"\nSuccess rate: {success / n * 100}%\n"
-        f"Max wireflies used: {max_wf}\n"
-        f"Max flips: {max_flips}, with sequence\n{max_sequence}"
-    )
+    result = f"Opponent started at {opp_hp} HP, {flips} flips per attempt" \
+             f"\nSuccess rate: {success/n*100:.3f}% ({success} out of {n} attempts)\n" \
+             f"Max wireflies used: {max_wf}\n" \
+             f"Max flips: {max_flips}, with sequence\n{max_sequence}"
+
+    if os.path.exists(log_name):
+        with open(log_name, 'r') as original:
+            contents = original.read()
+        with open(log_name, 'w') as modified:
+            modified.write(datetime.datetime.now().strftime("%X %x") + "\n" + result + "\n\n" + contents)
+    else:
+        with open(log_name, 'w+') as file:
+            file.write(datetime.datetime.now().strftime("%X %x") + result)
+
+    print(result)
+
+
+def main():
+    # If True, a nice progress window is showed, which also quadruples runtime
+    sim_setup(show_progress=True, log_name="result_log.txt")
 
 
 if __name__ == "__main__":
