@@ -1,7 +1,8 @@
 import random
 import matplotlib.pyplot as plt
 import os.path
-from dataclasses import dataclass
+import curses
+from dataclasses import dataclass, field
 from typing import Dict
 
 
@@ -13,9 +14,41 @@ class Result:
     sequence: str
 
 
+@dataclass
+class Data:
+    wf_data: Dict = field(default_factory=dict)
+    flip_data: Dict = field(default_factory=dict)
+    success: int = 0
+    last_wf: int = 0
+    last_flips: int = 0
+    last_sequence: str = ""
+    max_wf: int = 0
+    max_flips: int = 0
+    max_sequence: str = ""
+
+    def parse(self, result: Result):
+        self.success += 1
+        self.last_wf = result.wireflies
+        self.last_flips = result.flips
+        self.last_sequence = result.sequence
+        try:
+            self.wf_data[result.wireflies] += 1
+        except KeyError:
+            self.wf_data.update({result.wireflies: 1})
+        try:
+            self.flip_data[result.flips] += 1
+        except KeyError:
+            self.flip_data.update({result.flips: 1})
+        if self.max_wf < result.wireflies:
+            self.max_wf = result.wireflies
+        if self.max_flips < result.flips:
+            self.max_flips = result.flips
+            self.max_sequence = result.sequence
+
+
 def combo(attempts: int, hp: int) -> Result:
     """
-    Simulates a single attempt the Wirefly Hive combo.
+    Simulates a single attempt of the Wirefly Hive combo.
     See https://www.youtube.com/watch?v=mKZ-ibOkRzs for details.
 
     :param attempts:
@@ -39,7 +72,9 @@ def combo(attempts: int, hp: int) -> Result:
             hp += 1
             wireflies += 1
             if wireflies * 2 >= hp:
+                """
                 print(f"Succeeded with {wireflies} wireflies after {len(seq)} coin flips\nSequence: {seq}")
+                """
                 return Result(True, wireflies, len(seq), seq)
         else:
             wireflies = 0
@@ -60,6 +95,8 @@ def next_name(filename: str) -> str:
 def plot_data(
         sim_data: Dict,
         xlabel: str,
+        fig_width=1650,
+        fig_height=900,
         display_mode='save',
         filename='graph.png',
         overwrite=True
@@ -72,6 +109,12 @@ def plot_data(
         Data, formatted as {x_1: y_1, x_2: y_2, ...}
     :param xlabel:
         String that will be used as the x-axis label
+    :param fig_width:
+        Width of the resulting data plot;
+        default: 1650
+    :param fig_height:
+        Width of the resulting data plot;
+        default: 900
     :param display_mode:
         Either "save" or "show";
         "save": the graph is saved to a file;
@@ -95,7 +138,7 @@ def plot_data(
     """
 
     dpi = plt.rcParams["figure.dpi"]
-    fig = plt.figure(figsize=(1280/dpi, 960/dpi))
+    fig = plt.figure(figsize=(fig_width / dpi, fig_height / dpi))
     ax = fig.add_axes([0, 0, 1, 1])
     rects = ax.bar(sim_data.keys(), sim_data.values())
     ax.set_xlabel(xlabel)
@@ -116,48 +159,62 @@ def plot_data(
         raise ValueError(error_msg)
 
 
-def sim():
-    n = 1000000  # number of simulations
-    flips = 1000  # number of coin flips per simulation
-    opp_hp = 4  # opponent's starting HP
-    success = 0  # successful combo counter
-    max_wf = 0  # maximum amount of wireflies in a successful combo
-    max_flips = 0  # maximum amount of flips in a successful combo
-    max_sequence = ""  # sequence of flips corresponding to the maximum amount
-    wf_data = {}  # wirefly data for a bar graph
-    flip_data = {}  # flip data for a bar graph
+def progress_bar(current, total, bar_length=75):
+    fraction = current / total
+
+    arrow = int(fraction * bar_length - 1) * '-' + '>'
+    padding = int(bar_length - len(arrow)) * ' '
+
+    return f'Progress: [{arrow}{padding}] {fraction*100:.2f}% ({current}/{total})'
+
+
+def sim(stdscr, n, flips, opp_hp):
+    data = Data()
+
+    stdscr.nodelay(True)
 
     for i in range(n):
         attempt = combo(flips, opp_hp)
         if attempt.outcome:
-            success += 1
-            try:
-                wf_data[attempt.wireflies] += 1
-            except KeyError:
-                wf_data.update({attempt.wireflies: 1})
-            try:
-                flip_data[attempt.flips] += 1
-            except KeyError:
-                flip_data.update({attempt.flips: 1})
-            if max_wf < attempt.wireflies:
-                print(f"New wirefly max: {attempt.wireflies} wireflies")
-                max_wf = attempt.wireflies
-            if max_flips < attempt.flips:
-                print(f"New flip max: {i} flips")
-                max_flips = attempt.flips
-                max_sequence = attempt.sequence
+            data.parse(attempt)
+        stdscr.clear()
+        stdscr.addstr(0, 0, f"Last success wireflies: {data.last_wf}")
+        stdscr.addstr(1, 0, f"Last success flips: {data.last_flips}")
+        stdscr.addstr(2, 0, f"Last successful sequence: {data.last_sequence}")
+        stdscr.addstr(3, 0, f"Max wireflies: {data.max_wf}")
+        stdscr.addstr(4, 0, f"Max flips: {data.max_flips}")
+        stdscr.addstr(5, 0, f"Max successful sequence: {data.max_sequence}")
+        bar = progress_bar(i, n)
+        stdscr.addstr(6, 0, bar)
+        stdscr.refresh()
+        c = stdscr.getch()
+        if c == 3:
+            stdscr.addstr(0, 0, "getch() got Ctrl+C")
+            stdscr.refresh()
+            raise KeyboardInterrupt
+        else:
+            curses.flushinp()
+
+    plot_data(sim_data=data.wf_data, xlabel="Wireflies used", display_mode="save", filename="wf_graph.png")
+    # plot_data(sim_data=wf_data, xlabel="Wireflies used", display_mode="show")
+    plot_data(sim_data=data.flip_data, xlabel="Flips used", display_mode="save", filename="flip_graph.png")
+    # plot_data(sim_data=flip_data, xlabel="Flips used", display_mode="show")
+
+    return data.success, data.max_wf, data.max_flips, data.max_sequence
+
+
+def main():
+    n = 20000000  # number of simulations
+    flips = 500  # number of coin flips per simulation, 1e8 sims haven't showed more than 72 flips, but who knows
+    opp_hp = 4  # opponent's starting HP
+    success, max_wf, max_flips, max_sequence = curses.wrapper(sim, n, flips, opp_hp)
 
     print(
-        f"Success rate: {success / n * 100}%\n"
+        f"\nSuccess rate: {success / n * 100}%\n"
         f"Max wireflies used: {max_wf}\n"
         f"Max flips: {max_flips}, with sequence\n{max_sequence}"
     )
 
-    plot_data(wf_data, "Wireflies used", "save", "wf_graph.png")
-    # plot_data(wf_data, "Wireflies used", "show")
-    plot_data(flip_data, "Flips used", "save", "flip_graph.png")
-    # plot_data(flip_data, "Flips used", "show")
-
 
 if __name__ == "__main__":
-    sim()
+    main()
