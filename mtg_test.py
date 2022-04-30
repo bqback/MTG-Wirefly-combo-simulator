@@ -205,7 +205,7 @@ def sim(stdscr, n, flips, opp_hp):
 
 def main():
     n = 20000000  # number of simulations
-    flips = 500  # number of coin flips per simulation, 1e8 sims haven't showed more than 72 flips, but who knows
+    flips = 400  # number of coin flips per simulation, 1e8 sims haven't showed more than 72 flips, but who knows
     opp_hp = 4  # opponent's starting HP
     success, max_wf, max_flips, max_sequence = curses.wrapper(sim, n, flips, opp_hp)
 
